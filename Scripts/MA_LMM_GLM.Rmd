@@ -1,0 +1,1143 @@
+---
+output:
+  word_document: default
+  html_document: default
+---
+## Loading in Data 
+
+```{r ,setup, include=FALSE}
+knitr::opts_knit$set(root.dir = '/Users/rogershome/Desktop/Grad Stats 5741/Stats_Rethinking-Bayes/BDA_Final')
+getwd()
+```
+
+
+```{r}
+library(rethinking)
+library(tidyverse)
+getwd()
+#setwd("/Users/rogershome/Desktop/Grad Stats 5741/Stats_Rethinking-Bayes/BDA_Final")
+d <- read.csv("d15_clicks_e.csv")
+dprime <-read.csv("dec15.clicks_editing_2.csv")
+scen <-read.csv("dec15.scenarios_cleaned.csv")
+
+#the rows that are in the scenarios file; data for subjects who completed task 
+scen_uniq <-unique(scen$uid)
+#scen_uniq
+
+#TODO: remove any subjects from dprime who are not contained in scen_uniq
+#colnames(dprime)
+
+#check to make sure all subjects have all 31 scenarios completed (though all the clicks for them should be saved for each scenario)
+
+dprime_u <-unique(dprime$uid)
+
+#dprime_u
+
+setdiff(dprime_u, scen_uniq)
+#remove rows with those values in dprime
+# dprime_a <- dprime %>% 
+#   filter(!grepl('REVERSE', Name))
+
+df1 <- dprime[!dprime$uid %in% c("587305bbdb3e720001e231cf", "5e278abe0c61149b1646885e", "633f13d17cdae412322eabd0", "634727caa60d531ce868ad44", "65411f38ee4b823f368ef105"), ]
+
+#View(df1)
+#unique(df1$uid)
+
+
+
+df1$num_uid <- as.integer(factor(df1$uid, 
+                  levels=unique(df1$uid)))
+
+
+#View(df1)
+df2 <- df1[-c(1:3,9:11)]
+
+#colnames(df2)
+#make bard dataframe
+df_bard <- df1[-c(1:3, 10:11)]
+
+#View(df_bard)
+
+typeof(df_bard$bardguilt)
+
+bard_ratings <-df_bard[-(which(df_bard$num_uid %in% c(61,84))),]
+
+#unique(bard_ratings$num_uid)
+
+#write.csv(bard_ratings, "bard_ratings.csv")
+
+#View(df2)
+clicks_cleaned <- df1[-c(1, 9:11)]
+#View(clicks_cleaned)
+
+#remove num_uid 61 and num_id 84
+clicks_cleaned <-clicks_cleaned[-(which(clicks_cleaned$num_uid %in% c(61,84))),]
+
+#write.csv(clicks_cleaned, "ratings_data.csv")
+
+```
+## Model Specification 
+
+```{r}
+
+#Model estimating average rating for case strength where individual subjects are random factors
+
+#TODO: add adaptive prior 
+
+# mrating <- ulam(
+#   alist(
+#     rating ~ dnorm(mu, sigma),
+#     mu <- a[num_uid],
+#     a[num_uid] ~ drnorm(a_bar , sigma_bar),
+#     a_bar ~ dnorm(0, 1.5),
+#     sigma_bar ~ dexp(1),
+#     sigma ~ dexp(1)
+#   ), data=df , chains=4 )
+# 
+# precis(mrating, prob = .95, depth=2)
+# 
+# traceplot(mrating@stanfit)
+
+
+#Model estimating effect of recall rating on case strength where individual subjects are random factors
+# library(rethinking)
+# mr2 <- ulam(
+#   alist(
+#     rating ~ dnorm(mu, sigma),
+#     mu <- a_uid[num_uid] + b_uid[num_uid]*recall,
+#     c(a_uid,b_uid)[num_uid] ~ multi_normal(c(a,b), Rho,sigma_uid),
+#     a~ normal(0, 1.5),
+#     b ~ normal(.3, .1),
+#     sigma_uid ~ exponential(1),
+#     sigma ~ exponential(1),
+#     Rho ~ lkj_corr(2)
+#   ), data=df2 , chains=4, iter=5000 )
+# 
+# precis(mr2, prob = .95)
+# 
+# traceplot(mr2@stanfit)
+```
+```{r}
+#Model estimating effect of knowledge rating on case strength where individual subjects are random factors
+
+# mr3 <- ulam(
+#   alist(
+#     rating ~ dnorm(mu, sigma),
+#     mu <- a_uid[num_uid] + b_uid[num_uid]*know,
+#     c(a_uid,b_uid)[num_uid] ~ multi_normal(c(a,b), Rho,sigma_uid),
+#     a~ normal(0, 1.5),
+#     b ~ normal(.3, .1),
+#     sigma_uid ~ exponential(1),
+#     sigma ~ exponential(1),
+#     Rho ~ lkj_corr(2)
+#   ), data=df2 , chains=4, iter=5000)
+# 
+# precis(mr3, prob = .95)
+```
+
+```{r}
+#Model estimating effect of realism rating on case strength where individual subjects are random factors
+
+# mr4 <- ulam(
+#   alist(
+#     rating ~ dnorm(mu, sigma),
+#     mu <- a_uid[num_uid] + b_uid[num_uid]*know,
+#     c(a_uid,b_uid)[num_uid] ~ multi_normal(c(a,b), Rho,sigma_uid),
+#     a~ normal(0, 1.5),
+#     b ~ normal(.5, .1),
+#     sigma_uid ~ exponential(1),
+#     sigma ~ exponential(1),
+#     Rho ~ lkj_corr(2)
+#   ), data=df2 , chains=4, iter=5000)
+# 
+# precis(mr4, prob = .95)
+```
+# Early Data Visualizations
+
+```{r}
+##Scatterplot of case strength vs. recall
+library(ggplot2)
+ggplot(df2, aes(x=recall, y=rating)) + geom_point()
+
+#Scatterplot of case strength vs. recall, colored by subj
+ggplot(df2, aes(x=recall, y=rating)) + geom_point(aes(color=num_uid))
+
+#Scatterplot of case strength vs. recall, colored by scenario
+ggplot(df2, aes(x=recall, y=rating)) + geom_point(aes(color=factor(scenario)))
+```
+
+
+```{r}
+#Scatterplot of case strength vs. Semantic memory
+ggplot(df2, aes(x=know, y=rating)) + geom_point()
+
+#Scatterplot of case strength vs. semantic memory, colored by subj
+ggplot(df2, aes(x=know, y=rating)) + geom_point(aes(color=num_uid))
+
+#Scatterplot of case strength vs. recall, colored by scenario
+ggplot(df2, aes(x=know, y=rating)) + geom_point(aes(color=scenario))
+```
+
+```{r}
+#Scatterplot of case strength vs. perceived realism
+ggplot(df2, aes(x=realrate, y=rating)) + geom_point()
+
+#Scatterplot of case strength vs. perceived realism, colored by subj
+ggplot(df2, aes(x=realrate, y=rating)) + geom_point(aes(color=num_uid))
+
+#Scatterplot of case strength vs. perceived realism, colored by scenario
+ggplot(df2, aes(x=realrate, y=rating)) + geom_point(aes(color=scenario))
+```
+## Scatterplots for individual subj
+
+
+```{r}
+#Making scatterplots for individual subjects (recall)
+
+# plotlist <- list()
+# 
+# id <- unique(df2$num_uid)
+# for(i in id){
+#    #filter the dataframe for each id
+#    list <- df2 %>% filter(id==i) %>% ggplot(aes(x = recall, y = rating)) +
+#       geom_point() +
+#       stat_smooth() +
+#       ggtitle("Plot for", paste(i))
+#    #print the plot
+#    print(list)
+#    #store the plot in the list with id as the name
+#    plotlist[[as.character(i)]] <- id
+# }
+
+
+#getwd()
+
+df2 %>%
+  group_split(num_uid) %>%
+  map(~ggsave(sprintf('plot_%d.png', first(.x$num_uid)), 
+              ggplot(.x, aes(x = recall, y = rating)) +
+               geom_point() +
+              stat_smooth() +  ggtitle(paste0("Plot for ", first(.x$num_uid)))))
+```
+```{r}
+#Scatterplots for individual subjects (semantic knowledge and rating)
+library(tidyverse)
+df2 %>%
+  group_split(num_uid) %>%
+  map(~ggsave(sprintf('plot_%d.png', first(.x$num_uid)), 
+              ggplot(.x, aes(x = know, y = rating)) +
+               geom_point() +
+              stat_smooth() +  ggtitle(paste0("Plot for ", first(.x$num_uid)))))
+```
+```{r}
+#Scatterplots for individual subjects (realism and rating)
+df2 %>%
+  group_split(num_uid) %>%
+  map(~ggsave(sprintf('plot_%d.png', first(.x$num_uid)), 
+              ggplot(.x, aes(x = realrate, y = rating)) +
+               geom_point() +
+              stat_smooth() +  ggtitle(paste0("Plot for ", first(.x$num_uid)))))
+```
+
+
+
+
+```{r}
+#checking number of case strength ratings made by each subject
+
+# df1 %>%
+#     group_by(num_uid) %>%
+#     summarise(count=n())
+# 
+# #NOTE: num_uid 61 and num_id 84 only have 30 instead of scenario ratings
+# 
+# #TODO: find out which subject prolific ids num_uid 61 and num_id 84 correspond to 
+# 
+# #num_uid 61
+# df61 <- df1 %>%
+#   filter(num_uid == 61)
+# View(df61)
+# #prolific ID:62b9cf42a63194f71fc0a393
+# 
+# df84 <- df1 %>%
+#   filter(num_uid == 84)
+# View(df84)
+
+#prolific ID:65411105625d24b4fa953473
+
+#in scenarios file, indicates that both have completed the task yet one set of scenario ratings is missing from both subjects 
+
+#I will likely need to remove those subjects from full analysis
+
+```
+# Plotting average memory ratings against case strength; delineated by scenario
+
+```{r}
+library(dplyr)
+install.packages("plyr")
+library(plyr)
+df2 <- read.csv("ratings_data.csv")
+View(df2)
+
+#unique(df2$uid)
+
+length(unique(df2$num_uid))
+#creating df3 which has removes subj 61 and 84
+df3 <-df2[-(which(df2$num_uid %in% c(61,84))),]
+#View(df3)
+
+#changing df2 colnames
+#TODO: FIX ORDER OF SEMANTIC AND REALISM 
+
+colnames(df2) <-c("x", "uid", "question", "scenario", "rating", "episodic", "realism", "semantic", "num_uid")
+View(df2)
+
+#creating dataframe containing average recall, know, realrate and average rating for each scenario
+d_avg_ratings <- df2 %>%
+  group_by(scenario) %>%
+  summarize(
+    average_rating = mean(rating),
+    average_episodic = mean(episodic),
+    average_semantic = mean(semantic),
+    average_realism = mean(realism),
+  )
+
+View(d_avg_ratings)
+
+#creating dataframe containing average recall, know, realrate and average rating for each subject
+
+d_avg_subj <- df2 %>%
+  group_by(num_uid) %>%
+  summarize(
+    average_rating = mean(rating),
+    average_recall = mean(episodic),
+    average_know = mean(semantic),
+    average_real = mean(realism),
+  )
+
+View(d_avg_subj)
+
+
+library(tidyverse)
+#TODO: plot histograms of all average ratings
+
+
+#dataframe containing avg rtaings for scenario
+
+
+
+#TODO: plot average memory ratings against case strength ratings; color by scenario
+#avg_recall vs case strength
+ggplot(d_avg_ratings, aes(x=average_recall, y=average_rating)) + geom_point(aes(color=factor(scenario)))
+#avg_know vs case strength
+ggplot(d_avg_ratings, aes(x=average_know, y=average_rating)) + geom_point(aes(color=factor(scenario)))
+#avg_rating vs case strength
+ggplot(d_avg_ratings, aes(x=average_real, y=average_rating)) + geom_point(aes(color=factor(scenario)))
+
+
+```
+## Correlation matrix for all ratings
+
+```{r}
+#install.packages("PerformanceAnalytics")
+library(PerformanceAnalytics)
+#install.packages("Hmisc")
+library(Hmisc)
+
+View(df2)
+unique(df2$num_uid)
+
+#plotting the correlation matrix for all ratings
+df_corr <-df2[-c(1:4,9)]
+
+#removing extra columns
+df_fixed <-df_corr[-c(5:8)]
+
+#make cor_df
+cor_df <-df_corr[c(1,2,4,3)]
+
+View(cor_df)
+cor.test(cor_df$episodic, cor_df$semantic)
+#rename the columns
+
+#View(df_corr)
+rcorr(as.matrix(cor_df))
+png(filename="correlations_raw_data.png")
+svg('correlations_raw_data.svg')
+chart.Correlation(cor_df, histogram=TRUE)
+dev.off()
+
+#plotting the correlation matrix for average ratings (for each scenario)
+corr_avg <-d_avg_ratings[-c(1)]
+View(corr_avg)
+#View(corr_avg)
+rcorr(as.matrix(corr_avg))
+svg('correlations_mean_by_scen.svg')
+chart.Correlation(corr_avg, histogram=TRUE)
+dev.off()
+
+#plotting the correlation matrix for average ratings for each subject
+corr_subj <-d_avg_subj[-c(1)]
+
+View(corr_subj)
+
+colnames(corr_subj) <- c("average_rating", "average_episodic", "average_semantic", "average_realism")
+#View(corr_subj)
+rcorr(as.matrix(corr_subj))
+svg('correlations_mean_by_subj.svg')
+chart.Correlation(corr_subj, histogram=TRUE)
+dev.off()
+```
+
+## Correlation matrices 
+
+```{r}
+library("ggplot2")  
+install.packages('GGally', dependencies=TRUE, repos="https://CRAN.R-project.org/")
+library(GGally)
+
+p <- ggpairs(df2, title="correlogram with ggpairs()")
+
+df2
+
+#correlation raw data
+df_corr <-df2[-c(1:4,9)]
+ggpairs(df_corr)+theme_bw()
+```
+
+
+
+## Correlation 
+
+## Commonality Analysis / Variance Partitioning
+
+```{r}
+library(yhat)
+#regr <- lm(paragrap ~ general + sentence + wordc + wordm)
+
+#View(df_corr)
+
+#regr <-lm(rating ~ recall + know + realrate, data=df_corr)
+#summary(regr)
+#library(car)
+#vif(regr)
+#Common_coef<-commonalityCoefficients(df_corr, "rating", list("recall", "know", "realrate"), "F")
+#print(Common_coef)
+
+#View(df3)
+
+#multilevel model using subj as random effect
+library(lmerTest)
+library(car)
+#View(df2)
+regr2 <-lmer(rating ~ recall + know + realrate + (1|num_uid) + (1|scenario), data=df2)
+summary(regr2)
+vif(regr2) #variance inflation 
+
+regr_old <-lmer(rating ~ recall + know + realrate + (1|num_uid), data=df2)
+summary(regr_old)
+#making regression table
+install.packages("sjlabelled")
+library(sjPlot)
+library(sjmisc)
+library(sjlabelled)
+
+tab_model(regr2, pred.labels = c("Intercept", "Episodic Recall", "Semantic Memory", "Perceived Realism"))
+
+
+#RM2 marginal R squared: variance of fixed effects only
+#R2c conditional R squared: variance accounted for by total model
+
+
+library(partR2)
+#trying on our model 
+results <- partR2(regr2, partvars = c("recall", "know", "realrate"), nboot=100)
+print(results)
+#summary(results)
+
+
+```
+## Runnning separate multilevel models and grabbing R squared
+
+```{r}
+
+```
+
+
+# Running linear mixed effects models predicting case strength
+
+```{r}
+## running standard lmm with subjects as random effect - original model from CogLunch
+
+library(lmerTest)
+library(car)
+library(sjPlot)
+library(sjmisc)
+library(sjlabelled)
+regr <-lmer(rating ~ recall + know + realrate + (1|num_uid), data=df2)
+summary(regr)
+vif(regr) #variance inflation 
+tab_model(regr, pred.labels = c("Intercept", "Episodic Recall", "Semantic Memory", "Perceived Realism"))
+
+#running lmm scenario as random effect - using average ratings for each scenario 
+
+#running lmm subjects as random effect - using average ratings for each subject
+
+#model two random effects - subj and scenario
+regr3 <-lmer(rating ~ episodic + semantic + realism + (1|num_uid) + (1|scenario), data=df2)
+summary(regr3)
+library(sjPlot)
+tab_model(regr3, pred.labels = c("Intercept", "Episodic Memory", "Semantic Memory", "Perceived Realism"), dv.labels = c("Case Strength Rating"))
+```
+
+
+# rerunning lmm using zscores
+
+```{r}
+### calculate z scores for episodic, semantic, realism
+
+
+View(df2)
+
+library(dplyr)
+df_zscored <- df2 %>%
+  mutate(z_episodic = ((recall-mean(recall))/sd(recall)),
+         z_semantic = ((know-mean(know))/sd(know)),
+         z_realism = ((realrate-mean(realrate))/sd(realrate)),
+         z_case_strength = ((rating-mean(rating))/sd(rating)))
+
+View(df_zscored)
+
+#run lmm using z scored ratings
+regr_z_scores <-lmer(z_case_strength ~ z_episodic + z_semantic + z_realism + (1|num_uid) + (1|scenario), data=df_zscored)
+summary(regr_z_scores)
+#library(sjPlot)
+tab_model(regr_z_scores, pred.labels = c("Intercept", "Episodic Memory", "Semantic Memory", "Perceived Realism"), dv.labels = c("Case Strength Rating"))
+
+```
+
+
+# Variance Partitioning on LMM
+
+```{r}
+#partiotioning variance on regr3
+library(yhat)
+library(partR2)
+part_var3 <- partR2(regr3, partvars = c("episodic", "semantic", "realism"), nboot=100)
+summary(part_var3)
+
+#partitioning variance on regr_z_scores
+part_var_z <- partR2(regr_z_scores, partvars = c("z_episodic", "z_semantic", "z_realism"), nboot=100)
+summary(part_var_z)
+
+```
+
+
+#Multilevel Logistic regression 
+Here, we will predict BARD (guilty/not guilty) using the memory and realism measures as predictors. We'll start with a little cleaning by assigning a value of 0 to FALSE and a valye of 1 to TRUE for the values in the bardguilt column of the dataset. Then, we'll run the model using the glmer() function, with the family= binomial. 
+
+This model has the same random effects structure as the LMM predicting case strength (i.e. random intercepts for subject and scenario.)
+
+
+```{r}
+## cleaning data 
+library(dplyr)
+bard_stuff <-read.csv("bard_ratings.csv")
+bard_data <- bard_stuff %>%
+  mutate(bard = ifelse(bardguilt == TRUE, 1, 0))
+
+
+View(bard_data)
+
+#setting up multilevel logistic regression -random intercept for subjects
+bard_regr <-glmer(bard ~ recall + know + realrate + (1|num_uid), data = bard_data, family = binomial)
+summary(bard_regr)
+
+#rescaling variables
+
+#dividing all ratings by 100 
+b_df <- bard_data %>%
+  mutate(recall10 = recall/100,
+          realrate10 = realrate/100,
+          know10 = know/100,
+         rating10 = rating/100,
+         .keep = "all")
+
+#View(b_df)
+
+#running model with rescaled variables
+b_regr <-glmer(bard ~ recall10 + know10 + realrate10 + (1|num_uid), data = b_df, family = binomial)
+summary(b_regr)
+tab_model(b_regr, pred.labels = c("Intercept", "Episodic Recall", "Semantic Memory", "Perceived Realism"))
+
+
+#setting up multilevel logistic regression - 2 intercepts
+l_regr <-glmer(bard ~ recall + know + realrate + (1|num_uid) + (1|scenario), data = bard_data, family = binomial)
+summary(l_regr)
+#running model with rescaled variables
+b_regr2 <-glmer(bard ~ recall10 + know10 + realrate10 + (1|num_uid) + (1|scenario), data = b_df, family = binomial)
+summary(b_regr2)
+#viewing results 
+tab_model(b_regr2, pred.labels = c("Intercept", "Episodic Recall", "Semantic Memory", "Perceived Realism"))
+
+#run the variance partioning on the logistic regression 
+
+```
+
+```{r}
+#running model with rescaled variables
+b_regr2 <-glmer(bard ~ recall10 + know10 + realrate10 + (1|num_uid) + (1|scenario), data = b_df, family = binomial)
+summary(b_regr2)
+#viewing results 
+tab_model(b_regr2, pred.labels = c("Intercept", "Episodic Recall", "Semantic Memory", "Perceived Realism"))
+
+
+```
+
+```{r}
+##model with optimizer 
+b_opt <-glmer(bard ~ recall10 + know10 + realrate10 + (1|num_uid) + (1|scenario), data = b_df, family = binomial, control=glmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)))
+summary(b_opt)
+#viewing results 
+library(sjPlot)
+tab_model(b_opt, pred.labels = c("Intercept", "Episodic Memory", "Semantic Memory", "Perceived Realism"), dv.labels = c("BARD"))
+
+
+
+#model using z scores and optimizer
+library(dplyr)
+
+#cleaning data
+df_bard_z <- bard_data %>%
+  mutate(z_episodic = ((recall-mean(recall))/sd(recall)),
+         z_semantic = ((know-mean(know))/sd(know)),
+         z_realism = ((realrate-mean(realrate))/sd(realrate)),
+         z_case_strength = ((rating-mean(rating))/sd(rating)))
+View(df_bard_z)
+
+#range of z scored epsiodic 
+range(df_bard_z$z_episodic)
+
+#range of z scored semantic
+range(df_bard_z$z_semantic)
+
+#range of z scored realism
+range(df_bard_z$z_realism)
+
+#range of z scored case strength 
+range(df_bard_z$z_case_strength)
+
+##glm model with optimizer - z-scored predictors
+
+# b_zscored <-glmer(bard ~ z_episodic + z_semantic + z_realism + (1|num_uid) + (1|scenario), data = df_bard_z, family = binomial, control=glmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)))
+# summary(b_zscored)
+# tab_model(b_zscored, pred.labels = c("Intercept", "Episodic Memory", "Semantic Memory", "Perceived Realism"), dv.labels = c("BARD"))
+
+
+```
+
+#correlelogram of z scores
+
+```{r}
+install.packages("plotly")
+library(plotly)
+df_bard_z
+
+df_corr_z <- df_bard_z[-c(1:9)]
+
+p <- ggpairs(df_bard_z, title="correlogram with ggpairs()")
+ggplotly(p)
+
+```
+
+
+#histograms of all z scored ratings 
+
+```{r}
+hist(df_bard_z$z_episodic)
+
+hist(df_bard_z$z_semantic)
+
+hist(df_bard_z$z_realism)
+
+hist(df_bard_z$z_case_strength)
+```
+
+# scatterplots of all ratings against case strength
+
+```{r}
+
+#episodic vs case strength
+ggplot(df_bard_z, aes(x=z_episodic, y=z_case_strength)) + geom_point()
+#semantic vs case strength
+ggplot(df_bard_z, aes(x=z_semantic, y=z_case_strength)) + geom_point()
+#realism vs case strength
+ggplot(df_bard_z, aes(x=z_realism, y=z_case_strength)) + geom_point()
+```
+
+#pairwise models of all predictors
+
+```{r}
+#episodic predicts case strength
+regr_ep <-lmer(z_case_strength ~ z_episodic + (1|num_uid) + (1|scenario), data=df_bard_z)
+summary(regr_ep)
+#beta of .30; p < 0.001
+
+#semantic predicts case strength
+regr_sem <-lmer(z_case_strength ~ z_semantic + (1|num_uid) + (1|scenario), data=df_bard_z)
+summary(regr_sem)
+#beta of .28; p < 0.001
+
+#realism predicts case strength
+regr_real <-lmer(z_case_strength ~ z_realism + (1|num_uid) + (1|scenario), data=df_bard_z)
+summary(regr_real)
+#beta of .35; p < 0.001
+
+#episodic predicts semantic 
+regr_ep_sem <-lmer(z_semantic ~ z_episodic + (1|num_uid) + (1|scenario), data=df_bard_z)
+summary(regr_ep_sem)
+#beta of .56; p < 0.001
+
+#semantic predicts realism 
+regr_real_sem <-lmer(z_realism ~ z_semantic + (1|num_uid) + (1|scenario), data=df_bard_z)
+summary(regr_real_sem)
+#beta of .36; p < 0.001
+
+#episodic predicts realism 
+regr_ep_real <-lmer(z_realism ~ z_episodic + (1|num_uid) + (1|scenario), data=df_bard_z)
+summary(regr_ep_real)
+#beta of .31; p < 0.001
+
+```
+
+
+# Rerunning the LLM with the z scored predictors
+
+```{r}
+##LLMmodel with optimizer 
+regr_z_scores <-lmer(z_case_strength ~ z_episodic + z_semantic + z_realism + (1|num_uid) + (1|scenario), data=df_bard_z)
+summary(regr_z_scores)
+
+#viewing results
+library(sjPlot)
+tab_model(regr_z_scores, pred.labels = c("Intercept", "Episodic Memory", "Semantic Memory", "Perceived Realism"), dv.labels = c("Case Strength Rating"))
+```
+
+
+#variance partitioning on LLM
+
+```{r}
+library(partR2)
+llm_var <- partR2(regr_z_scores, partvars = c("z_episodic", "z_semantic", "z_realism"), nboot=100)
+print(llm_var)
+```
+
+
+#Pairwise models of the z scored predictors
+```{r}
+
+```
+
+
+#Rerunning GLM with z scored predictors 
+
+```{r}
+##glm model with optimizer - z-scored predictors
+
+b_zscored <-glmer(bard ~ z_episodic + z_semantic + z_realism + (1|num_uid) + (1|scenario), data = df_bard_z, family = binomial, control=glmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)))
+summary(b_zscored)
+tab_model(b_zscored, pred.labels = c("Intercept", "Episodic Memory", "Semantic Memory", "Perceived Realism"), dv.labels = c("BARD"))
+
+
+```
+
+
+#GLM just case strength
+
+```{r}
+b_zscored_case <-glmer(bard ~ z_case_strength + (1|num_uid) + (1|scenario), data = df_bard_z, family = binomial, control=glmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)))
+summary(b_zscored_case)
+tab_model(b_zscored_case, pred.labels = c("Intercept", "Case Strength"), dv.labels = c("BARD"))
+```
+
+#GLM Mediation (includes case strength rating)
+
+#Model fails to converge; CHECK
+
+```{r}
+b_zscored_all <-glmer(bard ~ z_episodic + z_semantic + z_realism + z_case_strength + (1|num_uid) + (1|scenario), data = df_bard_z, family = binomial, control=glmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)))
+summary(b_zscored_all)
+tab_model(b_zscored_all, pred.labels = c("Intercept", "Episodic Memory", "Semantic Memory", "Perceived Realism", "Case Strength"), dv.labels = c("BARD"))
+
+
+
+#rescaling the scenario numbers and also bounding them between 0 and 1 
+#the default is ML estimation and see if that works better; 
+# 
+ols_vif_tol(b_zscored_all)
+```
+```{r}
+#check singularity
+tt <- getME(b_zscored_all,"theta")
+ll <- getME(b_zscored_all,"lower")
+min(tt[ll==0])
+
+
+```
+
+
+```{r}
+#it could be that the reason the model didn't converge is because the scenarios aren't coded correctly in the dataframe- check 
+```
+
+
+
+```{r}
+#try different optimization method? ReML?
+b_zscored_all_opt <-glmer(bard ~ z_episodic + z_semantic + z_realism + z_case_strength + (1|num_uid) + (1|scenario), data = df_bard_z, family = binomial)
+summary(b_zscored_all_opt)
+library(sjPlot)
+tab_model(b_zscored_all_opt, pred.labels = c("Intercept", "Episodic Memory", "Semantic Memory", "Perceived Realism", "Case Strength"), dv.labels = c("BARD"))
+
+
+```
+Looks like the estimates aren't that different from what is produced using BOBYQA Method. However, the p values have changed as well as the correlation of fixed effects. 
+
+
+## Try rescaling the scenarios themselves or the subject numbers?
+
+```{r}
+
+```
+
+
+
+```{r}
+b_df$preds_prev = predict(b_opt, type="response")
+
+plt_opt1 <- ggplot(b_df) + geom_smooth(aes(x=realrate10, y=preds_prev), color = "orange")  + 
+  geom_point(aes(x=realrate10, y = bard), color = "darkorange") +
+  xlab("Percieved Realism (points)") +
+  ylab("Probability of Voting Guilty") 
+plt_opt1
+
+```
+
+```{r}
+plt_6 <- ggplot(b_df) + geom_smooth(aes(x=recall10, y=preds_prev), color = "darkgreen")  + 
+  geom_point(aes(x=recall10, y = bard), color = "lightgreen") +
+  xlab("Episodic Memory (points)") +
+  ylab("Probability of Voting Guilty") 
+plt_6
+```
+```{r}
+plt_opt3 <- ggplot(b_df) + geom_smooth(aes(x=know10, y=preds_prev), color = "brown")  + 
+  geom_point(aes(x=know10, y = bard), color = "maroon") +
+  xlab("Semantic Memory (points)") +
+  ylab("Probability of Voting Guilty") 
+plt_opt3
+```
+
+
+```{r}
+#variance partitioning on glmer 
+library(partR2)
+bard_var <- partR2(b_opt, partvars = c("recall10", "know10", "realrate10"), nboot=100)
+print(bard_var)
+```
+## Diagnosing glmer models 
+
+```{r}
+library(dbplyr)
+library(tidyverse)
+#try mean centering variables
+View(bard_data)
+
+#mean for each subj across all cases
+b_centered <- bard_data %>%
+  group_by(num_uid) %>%
+  summarize(
+    average_recall = mean(recall),
+    average_know = mean(know),
+    average_real = mean(realrate),
+    average_rating = mean(rating)
+  )
+
+View(b_centered)
+
+b_tot <- merge(b_centered,bard_data,by=c("num_uid"))
+
+View(b_tot)
+
+bm_center <- b_tot %>%
+  mutate(recall_center = abs(average_recall-recall),
+         know_center = abs(average_know - know),
+         real_center = abs(average_real - realrate),
+         rating_center = abs(average_rating - rating))
+
+View(bm_center)
+library(sjPlot)
+#model
+bard_centered <-glmer(bard ~ recall_center + know_center + real_center + (1|num_uid) + (1|scenario), data = bm_center, family = binomial)
+summary(bard_centered)
+#viewing results 
+tab_model(bard_centered, pred.labels = c("Intercept", "Episodic Recall", "Semantic Memory", "Perceived Realism"))
+        
+#TODO: average ratings for each scenario; collapsing across subjects
+b_centered <- bard_data %>%
+  group_by(scenario) %>%
+  summarize(
+    average_recall = mean(recall),
+    average_know = mean(know),
+    average_real = mean(realrate),
+    average_rating = mean(rating)
+  )
+
+
+
+```
+
+
+## Mediation Analysis 
+
+# Predicting bard using case strength 
+NOTE: This model yields the following warning message: 
+Warning: Model failed to converge with max|grad| = 0.0358129 (tol = 0.002, component 1)
+
+```{r}
+case_bard <-glmer(bard ~ rating10 + (1|num_uid) + (1|scenario), data = b_df, family = binomial)
+summary(case_bard)
+tab_model(case_bard, pred.labels = c("Intercept", "Case Strength"))
+```
+
+
+
+```{r}
+##trying different optimizer method
+case_bard2 <-glmer(bard ~ rating10 + (1|num_uid) + (1|scenario), data = b_df, family = binomial, control=glmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)))
+summary(case_bard2)
+tab_model(case_bard2, pred.labels = c("Intercept", "Case Strength"), dv.labels = c("BARD"))
+
+#z scored case strength
+case_bard_z <-glmer(bard ~ z_case_strength + (1|num_uid) + (1|scenario), data = df_bard_z, family = binomial, control=glmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)))
+summary(case_bard_z)
+tab_model(case_bard_z, pred.labels = c("Intercept", "Case Strength"), dv.labels = c("BARD"))
+
+```
+
+
+```{r} 
+#graphing 
+glm_probs = data.frame(probs = predict(case_bard2, type="response"))
+print(glm_probs)
+
+glm_pred = glm_probs %>%
+  mutate(pred = ifelse(probs>.5, "Guilty", "Not Guilty"))
+
+b_df$bins <- cut(b_df$rating10, breaks=c(0,.20,.40,.60, .80, 1), labels=c("0","20","40", "60", "80"))
+
+b_df$bin_val <-as.numeric(b_df$bins)
+
+
+library(ggplot2)
+
+ggplot(b_df, aes(x=rating10, y=bard)) + geom_point() +
+      stat_smooth(method="glm", color="lightblue", se=FALSE, 
+                method.args = list(family=binomial))
+
+
+#### graphing from Pearson 2018 paper
+
+preds <- predict.glm(case_bard2, newdata=data.frame(rating=1:100), type="response")
+View(preds)
+pred_dat <- data.frame(prob=preds, rating=1:100)
+pred_dat <- data.frame(prob=preds, rating=1:100)
+
+
+plt_4 <- ggplot(b_df) + geom_smooth(aes(x=rating10, y=pred), color = "slateblue")  + 
+  geom_point(aes(x=rating10, y = bard), color = "plum3") +
+  xlab("Case Strength (points)") +
+  ylab("Probability of Voting Guilty") 
+plt_4
+
+
+#curves for each of the memory measures as well 
+
+plt_4 <- ggplot(b_df) + geom_smooth(aes(x=rating10, y=pred), color = "slateblue")  + 
+  geom_point(aes(x=rating10, y = bard), color = "plum3") +
+  xlab("Case Strength (points)") +
+  ylab("Probability of Voting Guilty") 
+plt_4
+
+#run it quickly and then put on a powerpoint slide
+
+```
+```{r}
+```
+
+
+
+```{r}
+library(ggplot2)
+plt_5 <- ggplot(b_df) + geom_smooth(aes(x=realrate10, y=pred), color = "orange")  + 
+  geom_point(aes(x=realrate10, y = bard), color = "darkorange") +
+  xlab("Percieved Realism (points)") +
+  ylab("Probability of Voting Guilty") 
+plt_5
+```
+
+```{r}
+plt_6 <- ggplot(b_df) + geom_smooth(aes(x=recall10, y=pred), color = "darkgreen")  + 
+  geom_point(aes(x=recall10, y = bard), color = "lightgreen") +
+  xlab("Episodic Memory (points)") +
+  ylab("Probability of Voting Guilty") 
+plt_6
+```
+
+```{r}
+plt_7 <- ggplot(b_df) + geom_smooth(aes(x=know10, y=pred), color = "brown")  + 
+  geom_point(aes(x=know10, y = bard), color = "maroon") +
+  xlab("Semantic Memory (points)") +
+  ylab("Probability of Voting Guilty") 
+plt_7
+```
+
+```{r}
+#trying optimizer without rescaling - NOTE the follow model does not converge
+cb <-glmer(bard ~ rating + (1|num_uid) + (1|scenario), data = b_df, family = binomial, control=glmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)))
+summary(cb)
+tab_model(cb, pred.labels = c("Intercept", "Case Strength"))
+```
+
+
+```{r}
+med_bard <-glmer(bard ~ recall10 + know10 + realrate10 + rating10 + (1|num_uid) + (1|scenario), data = b_df, family = binomial)
+ 
+```
+
+```{r}
+#trying with different optimizer
+med_bard <-glmer(bard ~ recall10 + know10 + realrate10 + rating10 + (1|num_uid) + (1|scenario), data = b_df, family = binomial, control=glmerControl(optimizer="bobyqa", optCtrl=list(maxfun=2e5)))
+summary(med_bard)
+tab_model(med_bard, pred.labels = c("Intercept", "Episodic Memory", "Semantic Memory", "Perceived Realism", "Case Strength"), dv.labels= c("BARD"))
+```
+
+```{r}
+library(partR2)
+med_var <- partR2(med_bard, partvars = c("recall10", "know10", "realrate10", "rating10"), nboot=100)
+print(med_var)
+```
+
+
+
+##GLMER optimized w/ memory ratings as predictors (exlcuding case strength)
+
+## Linear Mixed Effects modeling with random slopes
+NOTE: The model that includes random intercepts for rating and scenario as well as random slopes for the memory and realism predictors has convergence issues (likely due to missing data.) Ask Eric or Seth for further suggestions. 
+
+```{r}
+# modeling subject and scenario as random effects with random slopes for subjects
+
+regr_alt <- lmer(rating ~ recall + know + realrate + (1 + recall + know + realrate|num_uid) + (1|scenario), data=df2)
+summary(regr_alt)
+#tab_model(regr3, pred.labels = c("Intercept", "Episodic Recall", "Semantic Memory", "Perceived Realism"))
+```
+
+```{r}
+#removing the recall slope from model 
+
+regr_edit <- lmer(rating ~ recall + know + realrate + (1 + know + realrate|num_uid) + (1|scenario), data=df2)
+summary(regr_edit)
+```
+
+```{r}
+# removing realrate slope from model 
+
+regr_edit2 <- lmer(rating ~ recall + know + realrate + (1 + know|num_uid) + (1|scenario), data=df2)
+summary(regr_edit2)
+```
+
+
+
+
+##Comment Dump
+
+```{r}
+# Common_coef<-commonalityCoefficients(df_corr, "rating", list("recall", "know", "realrate"), "F")
+
+
+#Trying to grab Common coef for multilevel model
+#This was a BUST - pay this no mind
+#install.packages("MuMIn")
+# library(MuMIn)
+# library(lme4)
+# mod1 <- lmer(Sepal.Length ~ Petal.Length + Petal.Width +(1 | Species), data = iris)
+# install.packages("glmm.hp")
+# library(glmm.hp)
+# a <- glmm.hp(mod1)
+# plot(a)
+# mod3 <- lm(Sepal.Length ~ Petal.Length+Petal.Width,data = iris)
+# plot(glmm.hp(mod3,type="R2"))
+# plot(glmm.hp(regr2,commonality=TRUE),color = c("#8DD3C7", "#FFFFB3", "red"))
+```
+
+
+```{r}
+install.packages("VennDiagram")   # Install & load VennDiagram package
+library(VennDiagram)
+grid.newpage()                                        # Move to new plotting page
+draw.triple.venn(area1 = 10,                          # Remove lines from venn ]
+                 area2 = 20,
+                 area3 = 15,
+                 n12 = 2,
+                 n23 = 3,
+                 n13 = 7,
+                 n123 = 2,
+                 fill = c("skyblue", "skyblue1", "skyblue2"),
+                 category = c("A", "B", "C"),
+                 lty = "blank")
+
+grid.newpage()                                        # Move to new plotting page
+draw.triple.venn(area1 = 10,                          # Remove lines from venn di
+                 area2 = 10,
+                 area3 = 10,
+                 n12 = 13.27,
+                 n23 = 1.58,
+                 n13 = 6.86,
+                 n123 = 25.10,
+                 fill = c("skyblue", "skyblue1", "skyblue2"),
+                 lty = "blank")
+
+
+```
+
+
+# Specifying zero order models 
+
+```{r}
+#View(df3)
+
+#Model estimating effect of recall rating on case strength where individual subjects are random factors
+#note that df3 is a data frame that contains subjs who have seen all 31 scenarios
+
+library(rethinking)
+View(df3)
+
+# #typeof(df3$num_uid)
+# mod_recall <- ulam(
+#   alist(
+#     rating ~ dnorm(mu, sigma),
+#     mu <- a_uid[num_uid] + b_uid[num_uid]*recall,
+#     c(a_uid,b_uid)[num_uid] ~ multi_normal(c(a,b), Rho,sigma_uid),
+#     a~ normal(0, 1.5),
+#     b ~ normal(.3, .1),
+#     sigma_uid ~ exponential(1),
+#     sigma ~ exponential(1),
+#     Rho ~ lkj_corr(2)
+#   ), data=df3 , chains=4, iter=5000)
+# 
+# precis(mod_recall, prob = .95)
+# 
+# traceplot(mod_recall@stanfit)
+```
+

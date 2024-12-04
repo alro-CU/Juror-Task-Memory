@@ -1,0 +1,363 @@
+---
+title: "SfN_SEM_Script"
+author: "Alex Rogers"
+date: "2024-08-14"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Loading in data and dependencies
+
+```{r}
+#loading dependencies
+library(dplyr)
+library(lme4)
+library(lmerTest)
+library(sjPlot)
+library(lavaan)
+library(semPlot)
+library(tidyverse)
+library(lavaanPlot)
+
+#loading in data
+df <-read.csv("bard_ratings.csv")
+df <- df %>%
+  mutate(bard = ifelse(bardguilt == TRUE, 1, 0))
+
+
+#cleaning data
+df_z <- df %>%
+  mutate(z_episodic = ((recall-mean(recall))/sd(recall)),
+         z_semantic = ((know-mean(know))/sd(know)),
+         z_realism = ((realrate-mean(realrate))/sd(realrate)),
+         z_case_strength = ((rating-mean(rating))/sd(rating)))
+#View(df_z)
+```
+
+## Setting up model 1
+
+Questions: Do memory and realism load onto a common factor?
+
+```{r}
+
+#before sem, we'll start by doing CFA of episodic, semantic, and realism on some general memory factor
+
+#for multilevel model, let's specify the level 1 and level 2 equations
+# add in scenario as a predictor in some way to model
+# question: is it appropriate to say that scenario is predicting the factor as well? 
+# within as in within scenario?
+# model1 <- '
+# 
+# level: 1
+# 
+#   Memw =~ a*z_episodic + b*z_semantic + c*z_realism
+#   Memw =~ scenario
+# 
+# level: 2
+# 
+#   Memb =~ a*z_episodic + b*z_semantic + c*z_realism
+#   '
+# 
+# #fitting model by setting factor variance to 1
+# fit1 <- cfa(model1, data=df_z, meanstructure=TRUE, missing="ML", std.lv = TRUE, cluster = "num_uid")
+# 
+# # viewing results
+# summary(fit1, fit.measures=TRUE,standardized=TRUE)
+# 
+# 
+# # Quick plot of the model - standardized loadings
+# semPaths(fit1, intercept = FALSE, whatLabel = "std", nCharNodes = 0,
+#           residuals = TRUE, exoCov = FALSE)
+#  mtext("*Factor loadings are presented at the standardized level", side = 1, line = 4, family = "Times New Roman")
+```
+
+# Multilevel CFA just estimating random intercepts for subjects
+
+The estimates for our level of interest (i.e. effects across subjects) should be the same as running basic CFA and clustering by subject. Should see why robust fit indices yield N/As. 
+
+```{r}
+model_subj <- '
+
+level: 1
+
+  Memw =~ a*z_episodic + b*z_semantic + c*z_realism
+
+level: 2
+
+  Memb =~ a*z_episodic + b*z_semantic + c*z_realism
+  '
+
+#fitting model by setting factor variance to 1
+fit_subj <- cfa(model_subj, data=df_z, meanstructure=TRUE, missing="ML", std.lv = TRUE, cluster = "num_uid")
+
+# viewing results
+summary(fit_subj, fit.measures=TRUE,standardized=TRUE)
+
+
+# Quick plot of the model - standardized loadings
+semPaths(fit_subj, intercept = FALSE, whatLabel = "std", nCharNodes = 0,
+          residuals = TRUE, exoCov = FALSE)
+ mtext("*Factor loadings are presented at the standardized level", side = 1, line = 4, family = "Times New Roman")
+```
+
+# unconstraining loadings so they dont have to be equal at both levels
+
+```{r}
+model_unconst <- '
+
+level: 1
+
+  Memw =~ z_episodic + z_semantic + z_realism
+
+level: 2
+
+  Memb =~ z_episodic + z_semantic + z_realism
+  '
+
+#fitting model by setting factor variance to 1
+fit_unconst <- cfa(model_unconst, data=df_z, meanstructure=TRUE, missing="ML", std.lv = TRUE, cluster = "num_uid")
+
+# viewing results
+summary(fit_unconst, fit.measures=TRUE,standardized=TRUE)
+
+
+# Quick plot of the model - standardized loadings
+semPaths(fit_unconst, intercept = FALSE, whatLabel = "std", nCharNodes = 0,
+          residuals = TRUE, exoCov = FALSE)
+ mtext("*Factor loadings are presented at the standardized level", side = 1, line = 4, family = "Times New Roman")
+```
+
+
+# CFA just clustering by subject - Are the memory questions comprised of a common memory factor 
+
+```{r}
+model_clust <- '
+  Memory =~ a*z_episodic + b*z_semantic + c*z_realism
+  '
+
+#fitting model by setting factor variance to 1
+fit_clust <- cfa(model_clust, data=df_z, meanstructure=TRUE, missing="ML", std.lv = TRUE, cluster = "num_uid")
+
+# viewing results
+summary(fit_clust, fit.measures=TRUE,standardized=TRUE)
+
+
+# Quick plot of the model - standardized loadings
+semPaths(fit_clust, intercept = FALSE, whatLabel = "std", nCharNodes = 0,
+          residuals = TRUE, exoCov = FALSE)
+ mtext("*Factor loadings are presented at the standardized level", side = 1, line = 4, family = "Times New Roman")
+```
+
+# Multilevel SEM - General memory factor predicting case strength + allowing percieved realism to directly correlate with case strength rating
+
+This is only estimating random intercepts for subjects. 
+
+```{r}
+#now let's introduce case strength rating 
+model_sem <- '
+
+level: 1
+
+  Memw =~ a*z_episodic + b*z_semantic + c*z_realism
+  z_case_strength ~ Memw
+  z_case_strength ~ d*z_realism
+
+level: 2
+
+  Memb =~ a*z_episodic + b*z_semantic + c*z_realism
+  z_case_strength ~ Memb
+  z_case_strength ~ d*z_realism'
+
+#fitting model by setting factor variance to 1
+fit_sem <- sem(model_sem, data=df_z, meanstructure=TRUE, missing="ML", std.lv = TRUE, cluster = "num_uid")
+
+# viewing results
+summary(fit_sem, fit.measures=TRUE,standardized=TRUE)
+
+# Quick plot of the model - standardized loadings
+semPaths(fit_sem, intercept = FALSE, whatLabel = "std", nCharNodes = 0,
+          residuals = TRUE, exoCov = FALSE)
+ mtext("*Factor loadings are presented at the standardized level", side = 1, line = 4, family = "Times New Roman")
+```
+# Just using cluster argument for memory predicting case strength
+
+```{r}
+
+model_c <- '
+  Memory =~ z_episodic + z_semantic + z_realism
+  z_case_strength ~ Memory
+  z_case_strength ~ z_realism'
+
+fit_c <-sem(model_c, data=df_z, meanstructure=TRUE, missing="ML", std.lv = TRUE, cluster = "num_uid")
+
+# viewing results
+summary(fit_c, fit.measures=TRUE,standardized=TRUE)
+
+# Quick plot of the model - standardized loadings
+semPaths(fit_c, intercept = FALSE, whatLabel = "std", nCharNodes = 0,
+          residuals = TRUE, exoCov = FALSE)
+ mtext("*Factor loadings are presented at the standardized level", side = 1, line = 4, family = "Times New Roman")
+
+```
+
+#SEM only general factor predicting case strength 
+
+```{r}
+model_sem_gen <- '
+  Memory =~ z_episodic + z_semantic + z_realism
+  z_case_strength ~ Memory
+  '
+
+#fitting model by setting factor variance to 1
+fit_gen <- cfa(model_sem_gen, data=df_z, meanstructure=TRUE, missing="ML", std.lv = TRUE, cluster = "num_uid")
+
+# viewing results
+summary(fit_gen, fit.measures=TRUE,standardized=TRUE)
+
+
+# Quick plot of the model - standardized loadings
+semPaths(fit_gen, intercept = FALSE, whatLabel = "std", nCharNodes = 0,
+          residuals = TRUE, exoCov = FALSE)
+ mtext("*Factor loadings are presented at the standardized level", side = 1, line = 4, family = "Times New Roman")
+```
+
+
+
+# Model Comparison 
+
+```{r}
+anova(fit_gen, fit_c)
+```
+
+
+
+# Multilevel CFA just estimating random intercepts for scenario
+
+
+```{r}
+## DOES NOT WORK PROPERLY - use clustering without specifying level 1 and level 2 equations and test
+
+# model_scen <- '
+# 
+# level: 1
+# 
+#   Memw =~ a*z_episodic + b*z_semantic + c*z_realism
+# 
+# level: 2
+# 
+#   Memb =~ a*z_episodic + b*z_semantic + c*z_realism
+#   '
+# 
+# #fitting model by setting factor variance to 1
+# fit_scen <- cfa(model_scen, data=df_z, meanstructure=TRUE, missing="ML", std.lv = TRUE, cluster = "scenario")
+# 
+# # viewing results
+# summary(fit_scen, fit.measures=TRUE,standardized=TRUE)
+# 
+# 
+# # Quick plot of the model - standardized loadings
+# semPaths(fit_scen, intercept = FALSE, whatLabel = "std", nCharNodes = 0,
+#           residuals = TRUE, exoCov = FALSE)
+#  mtext("*Factor loadings are presented at the standardized level", side = 1, line = 4, family = "Times New Roman")
+
+
+
+## Specifying model only using the clustering argument 
+
+model_scen <- '
+Memory =~ z_episodic + z_semantic + z_realism' 
+
+#fitting model by setting factor variance to 1
+fit_scen <- cfa(model_scen, data=df_z, meanstructure=TRUE, missing="ML", std.lv = TRUE, cluster = "scenario")
+
+#  viewing results
+summary(fit_scen, fit.measures=TRUE,standardized=TRUE)
+
+# it looks like the model fits perfectly because its saturated; notice that there are no df
+
+```
+
+# General memory factor predicting case strength + allowing percieved realism to directly predict case strength rating
+
+This is only clustering observations by subject.   
+
+```{r}
+#now let's introduce case strength rating 
+
+model_scen_sem <- '
+
+  Memory =~ z_episodic + z_semantic + z_realism
+  z_case_strength ~ Memory
+  z_case_strength ~ z_realism'
+
+#fitting model by setting factor variance to 1
+fit_scen_sem <- sem(model_scen_sem, data=df_z, meanstructure=TRUE, missing="ML", std.lv = TRUE, cluster = "num_uid")
+
+# viewing results
+summary(fit_scen_sem, fit.measures=TRUE,standardized=TRUE)
+
+# Quick plot of the model - standardized loadings
+semPaths(fit_scen_sem, intercept = FALSE, whatLabel = "std", nCharNodes = 0,
+          residuals = TRUE, exoCov = FALSE)
+ mtext("*Factor loadings are presented at the standardized level", side = 1, line = 4, family = "Times New Roman")
+```
+# Compare with model that allows direct paths from semantic or episodic 
+
+```{r}
+model_alt_semantic <- '
+
+  Memory =~ z_episodic + z_semantic + z_realism
+  z_case_strength ~ Memory
+  z_case_strength ~ z_semantic'
+
+#fitting model by setting factor variance to 1
+fit_alt_semantic <- sem(model_alt_semantic, data=df_z, meanstructure=TRUE, missing="ML", std.lv = TRUE, cluster = "num_uid")
+
+# viewing results
+summary(fit_alt_semantic, fit.measures=TRUE,standardized=TRUE)
+
+# Quick plot of the model - standardized loadings
+semPaths(fit_alt_semantic, intercept = FALSE, whatLabel = "std", nCharNodes = 0,
+          residuals = TRUE, exoCov = FALSE)
+ mtext("*Factor loadings are presented at the standardized level", side = 1, line = 4, family = "Times New Roman")
+```
+
+```{r}
+model_alt_episodic <- '
+
+  Memory =~ z_episodic + z_semantic + z_realism
+  z_case_strength ~ Memory
+  z_case_strength ~ z_episodic'
+
+#fitting model by setting factor variance to 1
+fit_alt_episodic <- sem(model_alt_episodic, data=df_z, meanstructure=TRUE, missing="ML", std.lv = TRUE, cluster = "num_uid")
+
+# viewing results
+summary(fit_alt_episodic, fit.measures=TRUE,standardized=TRUE)
+
+# Quick plot of the model - standardized loadings
+semPaths(fit_alt_episodic, intercept = FALSE, whatLabel = "std", nCharNodes = 0,
+          residuals = TRUE, exoCov = FALSE)
+ mtext("*Factor loadings are presented at the standardized level", side = 1, line = 4, family = "Times New Roman")
+```
+
+```{r}
+#formal model comparisons 
+#compared to semantic pathway
+anova(fit_scen_sem, fit_alt_semantic)
+
+#compared to epsiodic pathway
+anova(fit_scen_sem, fit_alt_episodic)
+```
+
+# NOTE: Cannot do a formal model comparison since these are non-nested models with the same number of degrees of freedom. Can report the RMSEA and the AIC and BIC values though when comparing. 
+
+
+
+
