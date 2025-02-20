@@ -1,0 +1,187 @@
+---
+output:
+  word_document: default
+  html_document: default
+---
+## Loading in Data 
+
+```{r ,setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+#loading dependencies and data
+library(rethinking)
+library(tidyverse)
+library(dplyr)
+library(lme4)
+library(lmerTest)
+library(sjPlot)
+library(yhat)
+library(lmerTest)
+library(car)
+library(sjPlot)
+library(sjmisc)
+library(sjlabelled)
+library(partR2)
+
+bard_df <-read.csv("bard_ratings.csv")
+bard_df <- bard_df %>%
+  mutate(bard = ifelse(bardguilt == TRUE, 1, 0))
+
+
+#cleaning data
+bard_z <- bard_df %>%
+  mutate(z_episodic = ((recall-mean(recall))/sd(recall)),
+         z_semantic = ((know-mean(know))/sd(know)),
+         z_realism = ((realrate-mean(realrate))/sd(realrate)),
+         z_case_strength = ((rating-mean(rating))/sd(rating)))
+```
+
+# Running linear mixed effects models predicting case strength
+
+```{r}
+## running standard lmm with subjects as random effect
+
+regr <-lmer(rating ~ recall + know + realrate + (1|num_uid), data=bard_z)
+summary(regr)
+vif(regr) #variance inflation 
+tab_model(regr, pred.labels = c("Intercept", "Episodic Recall", "Semantic Memory", "Perceived Realism"))
+
+#model two random effects - subj and scenario
+regr3 <-lmer(rating ~ recall + know + realrate + (1|num_uid) + (1|scenario), data=bard_z)
+summary(regr3)
+tab_model(regr3, pred.labels = c("Intercept", "Episodic Memory", "Semantic Memory", "Perceived Realism"), dv.labels = c("Case Strength Rating"))
+```
+
+
+# running lmm using zscores
+
+```{r}
+
+#run lmm using z scored ratings
+regr_z_scores <-lmer(z_case_strength ~ z_episodic + z_semantic + z_realism + (1|num_uid) + (1|scenario), data=bard_z)
+summary(regr_z_scores)
+#library(sjPlot)
+tab_model(regr_z_scores, pred.labels = c("Intercept", "Episodic Memory", "Semantic Memory", "Perceived Realism"), dv.labels = c("Case Strength Rating"))
+
+```
+
+
+# Variance Partitioning on LMM
+
+```{r}
+#partitioning variance on regr_z_scores
+part_var_z <- partR2(regr_z_scores, partvars = c("z_episodic", "z_semantic", "z_realism"), nboot=100)
+
+summary(part_var_z)
+
+```
+
+
+#Multilevel Logistic regression 
+Here, we will predict BARD (guilty/not guilty) using the memory and realism measures as predictors. We'll run the model using the glmer() function, with the family= binomial. 
+
+This model has the same random effects structure as the LMM predicting case strength (i.e. random intercepts for subject and scenario.)
+
+
+```{r}
+
+# #setting up multilevel logistic regression -random intercept for subjects
+# bard_regr <-glmer(bard ~ recall + know + realrate + (1|num_uid), data = bard_data, family = binomial)
+# summary(bard_regr)
+# 
+# #setting up multilevel logistic regression - 2 intercepts
+# l_regr <-glmer(bard ~ recall + know + realrate + (1|num_uid) + (1|scenario), data = bard_data, family = binomial)
+# summary(l_regr)
+
+```
+
+#pairwise models of all predictors
+
+```{r}
+#episodic predicts case strength
+regr_ep <-lmer(z_case_strength ~ z_episodic + (1|num_uid) + (1|scenario), data=bard_z)
+summary(regr_ep)
+tab_model(regr_ep, pred.labels = c("Episodic Memory"), dv.labels = c("Case Strength Rating"))
+#beta of .30; p < 0.001
+
+#semantic predicts case strength
+regr_sem <-lmer(z_case_strength ~ z_semantic + (1|num_uid) + (1|scenario), data=bard_z)
+summary(regr_sem)
+tab_model(regr_sem, pred.labels = c("Semantic Memory"), dv.labels = c("Case Strength Rating"))
+#beta of .28; p < 0.001
+
+#realism predicts case strength
+regr_real <-lmer(z_case_strength ~ z_realism + (1|num_uid) + (1|scenario), data=bard_z)
+summary(regr_real)
+tab_model(regr_real, pred.labels = c("Perceived Realism"), dv.labels = c("Case Strength Rating"))
+#beta of .35; p < 0.001
+
+#episodic predicts semantic 
+regr_ep_sem <-lmer(z_semantic ~ z_episodic + (1|num_uid) + (1|scenario), data=bard_z)
+summary(regr_ep_sem)
+tab_model(regr_ep_sem, pred.labels = c("Episodic Memory"), dv.labels = c("Semantic Memory"))
+#beta of .56; p < 0.001
+
+#semantic predicts realism 
+regr_real_sem <-lmer(z_realism ~ z_semantic + (1|num_uid) + (1|scenario), data=bard_z)
+summary(regr_real_sem)
+tab_model(regr_real_sem, pred.labels = c("Semantic Memory"), dv.labels = c("Perceived Realism"))
+#beta of .36; p < 0.001
+
+#episodic predicts realism 
+regr_ep_real <-lmer(z_realism ~ z_episodic + (1|num_uid) + (1|scenario), data=bard_z)
+summary(regr_ep_real)
+tab_model(regr_ep_real, pred.labels = c("Episodic Memory"), dv.labels = c("Perceived Realism"))
+#beta of .31; p < 0.001
+
+```
+#Multilevel Logistic regression 
+
+Here, we predict BARD (guilty/not guilty) using the memory and realism measures as predictors. We'll run the model using the stan_glmer() function, with the family = binomial. 
+
+This model has the same random effects structure as the LMM predicting case strength (i.e. random intercepts for subject and scenario.)
+
+# GLMER just memory effects on BARD
+
+```{r}
+library(rstanarm)
+library(rethinking)
+library(modelsummary)
+
+#running GLMER model using rstanarm
+bard_memory_stan <- stan_glmer(bard ~ z_episodic + z_semantic + z_realism + (1|num_uid) + (1|scenario), data = bard_z, family = binomial)
+
+#viewing results
+summary(bard_memory_stan)
+
+modelsummary(bard_memory_stan, statistic = "conf.int")
+
+#sjplot
+tab_model(bard_memory_stan, pred.labels = c("Intercept", "Episodic Memory", "Semantic Memory", "Perceived Realism"), dv.labels = c("BARD"))
+```
+
+#GLM Mediation (includes case strength rating)
+
+```{r}
+#running GLMER model using rstanarm
+
+bard_stan <- stan_glmer(bard ~ z_episodic + z_semantic + z_realism + z_case_strength + (1|num_uid) + (1|scenario), data = bard_z, family = binomial)
+
+#viewing results
+summary(bard_stan)
+
+precis(bard_stan, prob = .95)
+
+#alternative view
+modelsummary(bard_stan, statistic = "conf.int")
+
+#note which estimates have a confidence interval that includes zero 
+
+#View model
+tab_model(bard_stan, pred.labels = c("Intercept", "Episodic Memory", "Semantic Memory", "Perceived Realism", "Case Strength"), dv.labels = c("BARD"))
+
+```
+
