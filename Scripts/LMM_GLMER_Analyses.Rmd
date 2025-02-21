@@ -178,8 +178,6 @@ precis(bard_stan, prob = .95)
 #alternative view
 modelsummary(bard_stan, statistic = "conf.int")
 
-#note which estimates have a confidence interval that includes zero 
-
 #View model
 tab_model(bard_stan, pred.labels = c("Intercept", "Episodic Memory", "Semantic Memory", "Perceived Realism", "Case Strength"), dv.labels = c("BARD"))
 
