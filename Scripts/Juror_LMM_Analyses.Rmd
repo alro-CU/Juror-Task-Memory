@@ -89,19 +89,8 @@ tab_model(rg_e_real, pred.labels = c("Episodic Memory"), dv.labels = c("Perceive
 
 Here, we use the z scored measures of memory and realism to predict z scored case strength rating, while estimating random intercepts for subjects and scenarios as well as estimating random slopes for episodic memory, semantic memory, and realism. 
 
-
 ```{r}
-#run lmm using z scored ratings - include random slopes 
-rg_new <-lmer(z_case_strength ~ z_episodic + z_semantic + z_realism + (1 + z_episodic + z_semantic + z_realism |num_uid) + (1|scenario), data=bard_z)
-summary(rg_new)
-
-
-#library(sjPlot)
-tab_model(rg_new, pred.labels = c("Intercept", "Episodic Memory", "Semantic Memory", "Perceived Realism"), dv.labels = c("Case Strength Rating"))
-```
-
-```{r}
-#run lmm using z scored ratings - include random slopes - drop correlations between slopes
+#run lmm using z scored ratings - include random slopes - 
 rg_2 <-lmer(z_case_strength ~ z_episodic + z_semantic + z_realism + (1 + z_episodic + z_semantic + z_realism || num_uid) + (1|scenario), data=bard_z)
 summary(rg_2)
 
@@ -120,66 +109,6 @@ part_var_z <- partR2(rg_2, partvars = c("z_episodic", "z_semantic", "z_realism")
 summary(part_var_z)
 ```
 
-
-# Calculating shared and unique variance components based on PartR2 output 
-
-```{r}
-total_var = 0.1787
-episodic_memory <- 0.0363
-semantic_memory <- 0.0108
-p_realism <- 0.1069
-
-episodic_semantic <- 0.0715	
-episodic_realism <- 0.1481
-semantic_realism <- 0.1254
-
-
-#shared variance between episodic and semantic 
-shared_e_s <- episodic_semantic - episodic_memory - semantic_memory
-print(shared_e_s)
-
-# 0.0244
-
-#shared variance between episodic and realism
-shared_e_r <- episodic_realism - episodic_memory - p_realism
-print(shared_e_r)
-
-# 0.0049
-
-# shared variance between semantic and realism
-shared_s_r <- semantic_realism - semantic_memory - p_realism
-print(shared_s_r)
-
-# 0.0077
-
-#variance unique to episodic 
-unique_ep <- episodic_memory - shared_e_r - shared_e_s 
-print(unique_ep)
-# 0.007
-
-#variance unique to semantic
-unique_s <- semantic_memory - shared_s_r - shared_e_s
-print(unique_s)
-
-# -0.0213, no unique variance from semantic
-
-#variance unique to realism 
-unique_r <- p_realism - shared_s_r - shared_e_r
-print(unique_r)
-
-#0.0943
-
-# shared variance between all three predictors
-common_all <- total_var - (unique_ep + unique_r + shared_e_r + shared_e_s + shared_s_r)
-print(common_all)
-
-#0.0404
-
-#the summation of these values should add to total_var
-common_all + shared_e_p + shared_e_s + shared_s_r + unique_ep + unique_r
-
-```
-
 #Multilevel Logistic regression 
 
 Here, we predict BARD (guilty/not guilty) using the memory and realism measures as predictors. 
@@ -189,7 +118,7 @@ This model has the same random effects structure as the LMM predicting case stre
 # GLMER just memory effects on BARD
 
 ```{r}
-#run glmer using z scored ratings - include random slopes - drop correlations between slopes
+#run glmer using z scored ratings - include random slopes - 
 rg_glm <-glmer(bard ~ z_episodic + z_semantic + z_realism + (1 + z_episodic + z_semantic + z_realism || num_uid) + (1|scenario), data=bard_z, family = "binomial")
 summary(rg_glm)
 
