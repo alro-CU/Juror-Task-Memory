@@ -175,4 +175,74 @@ semPaths(fit_alt_episodic, intercept = FALSE, whatLabel = "std", nCharNodes = 0,
  mtext("*Factor loadings are presented at the standardized level", side = 1, line = 4, family = "Times New Roman")
 ```
 
+# SCENARIO - General memory factor predicting case strength + allowing percieved realism to directly predict case strength rating
+
+This is only clustering observations by scenario.   
+
+
+```{r}
+scenario_model_sem_gen <- '
+  Memory =~ z_episodic + z_semantic + z_realism
+  z_case_strength ~ Memory
+  '
+
+#fitting model by setting factor variance to 1
+scenario_fit_gen <- cfa(model_sem_gen, data=df_z, meanstructure=TRUE, missing="ML", std.lv = TRUE, cluster = "scenario")
+
+# viewing results
+summary(scenario_fit_gen, fit.measures=TRUE,standardized=TRUE)
+
+
+# Quick plot of the model - standardized loadings
+semPaths(scenario_fit_gen, intercept = FALSE, whatLabel = "std", nCharNodes = 0,
+          residuals = TRUE, exoCov = FALSE)
+ mtext("*Factor loadings are presented at the standardized level", side = 1, line = 4, family = "Times New Roman")
+```
+
+
+
+```{r}
+model_scenario_sem <- '
+
+  Memory =~ z_episodic + z_semantic + z_realism
+  z_case_strength ~ Memory
+  z_case_strength ~ z_realism'
+
+#fitting model by setting factor variance to 1
+fit_scenario_sem <- sem(model_scen_sem, data=df_z, meanstructure=TRUE, missing="ML", std.lv = TRUE, cluster = "scenario")
+
+# viewing results
+summary(fit_scenario_sem, fit.measures=TRUE,standardized=TRUE)
+
+# Quick plot of the model - standardized loadings
+semPaths(fit_scenario_sem, intercept = FALSE, whatLabel = "std", nCharNodes = 0,
+          residuals = TRUE, exoCov = FALSE)
+ mtext("*Factor loadings are presented at the standardized level", side = 1, line = 4, family = "Times New Roman")
+```
+
+# model comparison 
+
+```{r}
+anova(scenario_fit_gen, fit_scenario_sem)
+```
+
+
+```{r}
+scenario_model_alt_semantic <- '
+
+  Memory =~ z_episodic + z_semantic + z_realism
+  z_case_strength ~ Memory
+  z_case_strength ~ z_semantic'
+
+#fitting model by setting factor variance to 1
+scenario_fit_alt_semantic <- sem(model_alt_semantic, data=df_z, meanstructure=TRUE, missing="ML", std.lv = TRUE, cluster = "scenario")
+
+# viewing results
+summary(scenario_fit_alt_semantic, fit.measures=TRUE,standardized=TRUE)
+
+# Quick plot of the model - standardized loadings
+semPaths(scenario_fit_alt_semantic, intercept = FALSE, whatLabel = "std", nCharNodes = 0,
+          residuals = TRUE, exoCov = FALSE)
+ mtext("*Factor loadings are presented at the standardized level", side = 1, line = 4, family = "Times New Roman")
+```
 
