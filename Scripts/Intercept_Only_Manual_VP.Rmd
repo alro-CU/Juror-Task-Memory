@@ -1,0 +1,239 @@
+---
+title: "Intercept Only Manual VP"
+author: "Alex Rogers"
+date: "2025-09-08"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Loading dependencies and reading data
+```{r}
+library(tidyverse)
+library(lme4)
+library(lmerTest)
+library(sjPlot)
+library(lmerTest)
+library(car)
+library(partR2)
+library(MuMIn)
+
+bard_df <-read.csv("bard_ratings.csv")
+bard_df <- bard_df %>%
+  mutate(bard = ifelse(bardguilt == TRUE, 1, 0))
+
+
+#cleaning data
+bard_z <- bard_df %>%
+  mutate(z_episodic = ((recall-mean(recall))/sd(recall)),
+         z_semantic = ((know-mean(know))/sd(know)),
+         z_realism = ((realrate-mean(realrate))/sd(realrate)),
+         z_case_strength = ((rating-mean(rating))/sd(rating)))
+```
+
+# Mixed Effects model of case strength predicted by explicit memory and perceieved realism - Intercepts ONLY
+
+```{r}
+#set random seed
+set.seed(42)
+
+# linear mixed effects model 
+r_int<-lmer(z_case_strength ~ z_episodic + z_semantic + z_realism + (1 |num_uid) + (1|scenario), data=bard_z)
+
+#view results
+summary(r_int)
+
+#view r2 of model FULL
+full_r2 <- r.squaredGLMM(r_int)
+```
+
+## Marginal R2 Variance Partitioning 
+
+```{r}
+### Unique contribution of episodic ### 
+# model EPISODIC REMOVED
+reduced_no_ep <- lmer(z_case_strength ~ z_semantic + z_realism + (1 |num_uid) + (1|scenario), data=bard_z)
+#summary(reduced_no_ep)
+
+#view r2 of model EPISODIC REMOVED
+reduced_episodic <-r.squaredGLMM(reduced_no_ep)
+# difference between full model and reduced
+unique_episodic <- full_r2[1] - reduced_episodic[1]
+
+
+
+
+### Unique contribution of semantic ###
+# model SEMANTIC REMOVED
+reduced_no_sem <- lmer(z_case_strength ~ z_episodic + z_realism + (1 |num_uid) + (1|scenario), data=bard_z)
+#summary(reduced_no_sem)
+
+#view r2 of model SEMANTIC REMOVED
+reduced_semantic <- r.squaredGLMM(reduced_no_sem)
+# difference between full model and reduced
+unique_semantic <- full_r2[1] - reduced_semantic[1]
+
+
+### Unique contribution of realism ###
+# MODEL REALISM REMOVED
+reduced_no_real <- lmer(z_case_strength ~ z_episodic + z_semantic + (1 |num_uid) + (1|scenario), data=bard_z)
+#summary(reduced_no_real)
+#view r2 of model REALISM REMOVED
+reduced_realism <- r.squaredGLMM(reduced_no_real)
+# difference between full model and reduced
+unique_realism <- full_r2[1] - reduced_realism[1]
+
+
+
+### MODEL EPISODIC SEMANTIC REMOVED ###
+reduced_no_ep_sem <- lmer(z_case_strength ~ z_realism + (1 |num_uid) + (1|scenario), data=bard_z)
+#summary(reduced_no_ep_sem)
+#view r2 of model REALISM REMOVED
+no_ep_sem <- r.squaredGLMM(reduced_no_ep_sem)
+# difference between full model and reduced
+episodic_semantic <- full_r2[1] - no_ep_sem[1]
+
+### MODEL EPISODIC REALISM REMOVED ###
+reduced_no_ep_real <- lmer(z_case_strength ~ z_semantic + (1 |num_uid) + (1|scenario), data=bard_z)
+#summary(reduced_no_ep_real)
+#view r2 of model EPISODIC REALISM REMOVED
+no_ep_real <- r.squaredGLMM(reduced_no_ep_real)
+# difference between full model and reduced
+episodic_realism <- full_r2[1] - no_ep_real[1]
+
+
+### MODEL SEMANTIC REALISM REMOVED ### 
+
+reduced_no_sem_real <- lmer(z_case_strength ~ z_episodic + (1 |num_uid) + (1|scenario), data=bard_z)
+#summary(reduced_no_sem_real)
+#view r2 of model SEMANTIC REALISM REMOVED
+no_sem_real <- r.squaredGLMM(reduced_no_sem_real)
+# difference between full model and reduced
+semantic_realism <- full_r2[1] - no_sem_real[1]
+```
+
+## Marginal R2 Variance Components 
+
+```{r}
+cat("Unique episodic:", unique_episodic, "\n")
+
+cat("Unique semantic:", unique_semantic, "\n")
+
+cat("Unique realism:", unique_realism, "\n")
+
+
+# cat("Contribution of episodic and semantic:", episodic_semantic, "\n")
+#
+# cat("Contribution of episodic and realism:", episodic_realism, "\n")
+#
+# cat("Contribution of semantic and realism:", semantic_realism, "\n")
+
+
+### OVERLAPS BETWEEN PREDICTORS ###
+
+# overlap of episodic and semantic
+overlap_episodic_semantic <- episodic_semantic - unique_semantic - unique_episodic
+cat("Overlap of episodic and semantic memory:", overlap_episodic_semantic, "\n")
+# 2.44%
+
+# overlap of semantic and realism
+overlap_semantic_realism <-semantic_realism - unique_realism - unique_semantic
+cat("Overlap of semantic and realism:", overlap_semantic_realism, "\n")
+
+
+# overlap realism and episodic
+overlap_episodic_realism <- episodic_realism - unique_realism - unique_episodic
+cat("Overlap of realism and episodic:", overlap_episodic_realism, "\n")
+
+
+#overlap all three
+overlap_all_three <- full_r2[1] - overlap_episodic_semantic - overlap_semantic_realism - overlap_episodic_realism - unique_realism - unique_episodic - unique_semantic
+
+cat("Overlap of all three predictors:", overlap_all_three, "\n")
+
+```
+
+## MANUAL Variance Partitioning - Conditional R2 ##
+
+```{r}
+### Unique contribution of episodic + RE ### 
+
+# difference between full model and reduced
+cond_unique_episodic <- full_r2[2] - reduced_episodic[2]
+
+### Unique contribution of semantic ###
+
+# difference between full model and reduced
+cond_unique_semantic <- full_r2[2] - reduced_semantic[2]
+
+
+### Unique contribution of realism ###
+# MODEL REALISM REMOVED
+
+# difference between full model and reduced
+cond_unique_realism <- full_r2[2] - reduced_realism[2]
+
+
+### MODEL EPISODIC SEMANTIC REMOVED ###
+
+# difference between full model and reduced
+cond_episodic_semantic <- full_r2[2] - no_ep_sem[2]
+
+# MODEL NO EP REAL 
+
+# difference between full model and reduced
+cond_episodic_realism <- full_r2[2] - no_ep_real[2]
+
+
+# MODEL NO SEM REAL 
+# difference between full model and reduced
+cond_semantic_realism <- full_r2[2] - no_sem_real[2]
+
+
+```
+
+## Conditional R2 Variance Components 
+
+```{r}
+cat("Unique episodic (Conditional):", cond_unique_episodic, "\n")
+
+cat("Unique semantic: (Conditional)", cond_unique_semantic, "\n")
+
+cat("Unique realism: (Conditional)", cond_unique_realism, "\n")
+
+
+# cat("Contribution of episodic and semantic:", cond_episodic_semantic, "\n")
+# 
+# cat("Contribution of episodic and realism:", cond_episodic_realism, "\n")
+# 
+# cat("Contribution of semantic and realism:", cond_semantic_realism, "\n")
+
+
+### OVERLAPS BETWEEN PREDICTORS ###
+
+# overlap of episodic and semantic
+cond_overlap_episodic_semantic <- episodic_semantic - unique_semantic - unique_episodic
+cat("Overlap of episodic and semantic memory (Conditional)", cond_overlap_episodic_semantic, "\n")
+# 2.44%
+
+# overlap of semantic and realism
+cond_overlap_semantic_realism <-semantic_realism - unique_realism - unique_semantic
+cat("Overlap of semantic and realism: (Conditional)", cond_overlap_semantic_realism, "\n")
+
+
+# overlap realism and episodic
+cond_overlap_episodic_realism <- episodic_realism - unique_realism - unique_episodic
+cat("Overlap of realism and episodic: (Conditional)", cond_overlap_episodic_realism, "\n")
+
+
+#overlap all three
+cond_overlap_all_three <- full_r2[1] - overlap_episodic_semantic - overlap_semantic_realism - overlap_episodic_realism - unique_realism - unique_episodic - unique_semantic
+
+cat("Overlap of all three predictors: (Conditional)", cond_overlap_all_three, "\n")
+```
+
+
+
