@@ -100,14 +100,6 @@ tab_model(rg_2, pred.labels = c("Intercept", "Episodic Memory", "Semantic Memory
 #view r2 of model 
 r.squaredGLMM(rg_2)
 ```
-## variance partitioning 
-
-```{r}
-#partitioning variance on rg_2
-part_var_z <- partR2(rg_2, partvars = c("z_episodic", "z_semantic", "z_realism"), nboot=100)
-
-summary(part_var_z)
-```
 
 #Multilevel Logistic regression 
 
