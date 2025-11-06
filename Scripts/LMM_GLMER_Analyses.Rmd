@@ -69,17 +69,6 @@ tab_model(regr_z_scores, pred.labels = c("Intercept", "Episodic Memory", "Semant
 ```
 
 
-# Variance Partitioning on LMM
-
-```{r}
-#partitioning variance on regr_z_scores
-part_var_z <- partR2(regr_z_scores, partvars = c("z_episodic", "z_semantic", "z_realism"), nboot=100)
-
-summary(part_var_z)
-
-```
-
-
 #Multilevel Logistic regression 
 Here, we will predict BARD (guilty/not guilty) using the memory and realism measures as predictors. We'll run the model using the glmer() function, with the family= binomial. 
 
